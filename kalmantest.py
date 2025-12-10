@@ -59,15 +59,14 @@ class CustomKalman:
         ry = reference[1]
         rz = reference[2]
 
-        #Cool Jacobian thingy I found online for Euler > Quarternion
-
+        #Cool Jacobian thingy I found online
         jacob = np.array([
             [qw*rx + qy*rz - qz*ry,  qx*rx + qz*rz + qy*ry, -qy*rx + qw*rz + qx*ry, -qz*rx - qx*rz + qw*ry],
             [qz*rx + qw*ry - qx*rz,  qy*rx - qw*rz - qz*ry,  qx*rx + qw*rz + qy*ry,  qw*rx - qy*rz + qx*ry],
             [-qy*rx + qx*ry + qw*rz, qz*rx - qx*rz + qw*ry, -qw*rx - qz*rz + qx*ry,  qx*rx + qy*ry + qw*rz]
         ]) * 2.0
         
-        #To rotate quarternions
+        #To rotate reference to estimate quart
         rotation = np.array([
             [1-2*(qy**2+qz**2), 2*(qx*qy-qw*qz),   2*(qx*qz+qw*qy)],
             [2*(qx*qy+qw*qz),   1-2*(qx**2+qz**2), 2*(qy*qz-qw*qx)],
@@ -93,7 +92,6 @@ class CustomKalman:
         return self.estimate
 
 #Code starts here
-
 imuObj = CustomKalman() #Initialise imu class
 prevTime = time.time() #For dt calculation
 
@@ -102,6 +100,23 @@ def normalise(v):
     v = v if norm == 0 else v/norm
     return v 
 
+#Warmup period to get initial estimate based on starting accelero/magnetometer reading
+#IMU must stay as still as possible during this period
+startAccel = None
+startMag = None
+
+#Waits for IMU to start outputing non-garbage
+while startAccel is None or startMag is None:
+    startAccel = imu.acceleration
+    startMag = imu.magnetic
+    time.sleep(0.01)
+
+#Update 100 times to align estimate
+for i in range(100):
+    imuObj.update(normalise(startAccel), [0.0, 0.0, 1.0])
+    imuObj.update(normalise(startMag),   [1.0, 0.0, 0.0])  
+
+#IMU in operation, this part needs to be threaded when ported to the flask..?
 while(True):
 
     #Calculate elapsed time
